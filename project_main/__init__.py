@@ -1,10 +1,13 @@
 from flask import Flask
-from models import db
+from flask.ext.sqlalchemy import SQLAlchemy
+from db_credentials import SQLALCHEMY_DATABASE_URI
 import logging
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:root@localhost/ebay'
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
  
-logging.basicConfig(level=logging.INFO,format='%(asctime)s --- %(message)s')
-db.init_app(app)
+logging.basicConfig(filename='app.log',level=logging.INFO,format='%(asctime)s --- %(message)s')
+
+db = SQLAlchemy(app)

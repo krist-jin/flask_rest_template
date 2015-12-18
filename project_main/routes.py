@@ -1,13 +1,10 @@
-from project_main import app
-from flask import Flask, render_template, request, flash, session, redirect, url_for
+from project_main import app, db
+from flask import Flask, render_template, request, flash, session, redirect, url_for, jsonify, Response
 from sqlalchemy.sql import func
-from models import db, Ad, Impression, Click
+from models import User
 import urllib
 import logging
-from collections import OrderedDict
-
-IMPRESSION_WEIGHT = 1
-CLICK_WEIGHT = 2
+import json
 
 ### get a list of all available rest api ###
 @app.route('/', methods=['GET'])
@@ -35,91 +32,76 @@ def testdb():
     else:
         return 'DB is broken.'
 
-### create an ad ###
-@app.route('/ad', methods=['POST'])
-def create_ad():
+### create an user ###
+@app.route('/user', methods=['POST'])
+def create_user():
     try:
-        logging.info("receive a create_ad request")
-        category_id = request.form["category_id"]
-        content = request.form["content"]
-        ad = Ad(category_id, content)
-        db.session.add(ad)
+        logging.info("receive a create_user request")
+        input_data = request.get_json()
+        name = str(input_data.get('name'))
+        zipcode = int(input_data.get('zipcode'))
+        user = User(name, zipcode)
+        db.session.add(user)
         db.session.commit()
-        return "creata a new ad!\ncategory_id:%s\ncontent:%s\n"%(category_id,content)
+        return Response("user %s is created"%user.id, status=200)
     except Exception, e:
         logging.error(e)
-        return "Error in creating ad"
+        return Response(status=500)
 
-### delete an ad ###
-@app.route('/ad/<id>', methods=['DELETE'])
-def delete_ad(id):
+### delete an user ###
+@app.route('/user/<id>', methods=['DELETE'])
+def delete_user(id):
     try:
-        logging.info("receive a delete_ad request")
-        Ad.query.filter_by(id=id).delete()  # TODO: return error when id is not in the table
+        logging.info("receive a delete_user request")
+        user = User.query.get(id)
+        if not user:
+            return Response(status=404)
+        user.delete()  # TODO: return error when id is not in the table
         db.session.commit()
-        return "delete an ad: %s"%id
+        return Response("delete an user: %s"%id, status=200)
     except Exception, e:
         logging.error(e)
-        return "Error in deleting ad"
+        return Response(status=500)
     
-### get an ad from id ###
-@app.route('/ad/<id>', methods=['GET'])
-def retrive_ad(id):
+### get an user from id ###
+@app.route('/user/<id>', methods=['GET'])
+def retrive_user(id):
     try:
-        logging.info("receive a retrive_ad request")
-        ad = Ad.query.get(id)
-        return "Get an ad:\nid:%s\ncategory_id:%s\ncontent:%s\n"%(id,ad.category_id,ad.content)
+        logging.info("receive a retrive_user request")
+        user = User.query.get(id)
+        if not user:
+            return Response(status=404)
+        return Response(json.dumps(user.dictionary), mimetype='application/json', status=200)
     except Exception, e:
         logging.error(e)
-        return "Error in getting ad"
+        return "Error in getting user"
 
-### run algorithm and get an ad ###
-@app.route('/ad', methods=['GET'])
-def retrive_ad_smart():
+### get all users ###
+@app.route('/user', methods=['GET'])
+def retrive_all_users():
     try:
-        score_table = {}
-        res1 = Impression.query.add_columns(func.count(Impression.aid),Impression.aid).group_by(Impression.aid).all()
-        res2 = Click.query.add_columns(func.count(Click.aid),Click.aid).group_by(Click.aid).all()
-        for impression,score,aid in res1:
-            score_table.setdefault(aid,0)
-            score_table[aid]+=score*IMPRESSION_WEIGHT
-        for impression,score,aid in res2:
-            score_table.setdefault(aid,0)
-            score_table[aid]+=score*CLICK_WEIGHT
-        highest_aid,highest_score = max(score_table.items(),key=lambda x:x[1])
-        highest_ad = Ad.query.get(highest_aid)
-        # return "Get an ad:\nid:%s\ncategory_id:%s\ncontent:%s\nscore:%s"%(highest_ad.id,highest_ad.category_id,highest_ad.content,highest_score)
-        return str(highest_aid)
+        logging.info("receive a retrive_all_users request")
+        users = User.query.all()
+        json_result = json.dumps([user.dictionary for user in users])
+        return Response(json_result, mimetype='application/json', status=200)
     except Exception, e:
         logging.error(e)
-        return "Error in retrive_ad_smart"
+        return "Error in getting user"
 
-### register an impression ###
-@app.route('/impression', methods=['POST'])
-def register_impression():
+### update an user ###
+@app.route('/user/<id>', methods=['PUT'])
+def update_user(id):
     try:
-        logging.info("receive a register_impression request")
-        aid = request.form["aid"]
-        timestamp = request.form["timestamp"]
-        impression = Impression(aid, timestamp)
-        db.session.add(impression)
+        logging.info("receive a update_user request")
+        input_data = request.get_json()
+        updated_data = {}
+        if 'name' in input_data:
+            updated_data['name'] = input_data['name']
+        if 'zipcode' in input_data:
+            updated_data['zipcode'] = input_data['zipcode']
+        user = User.query.filter_by(id=id).update(updated_data)
         db.session.commit()
-        return "register an impression!\naid:%s\ntimestamp:%s\n"%(aid,timestamp)
+        return Response("update user %s"%id, status=200)
     except Exception, e:
         logging.error(e)
-        return "Error in registering impression"
-
-### register an click ###
-@app.route('/click', methods=['POST'])
-def register_click():
-    try:
-        logging.info("receive a register_click request")
-        aid = request.form["aid"]
-        timestamp = request.form["timestamp"]
-        click = Click(aid, timestamp)
-        db.session.add(click)
-        db.session.commit()
-        return "register an click!\naid:%s\ntimestamp:%s\n"%(aid,timestamp)
-    except Exception, e:
-        logging.error(e)
-        return "Error in registering click"
+        return "Error in updating user"

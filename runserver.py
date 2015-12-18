@@ -1,4 +1,3 @@
-from project_main import app
-from project_main import routes
+from project_main import app, routes
  
-app.run(host='0.0.0.0', port=80, debug=True)
+app.run(host='0.0.0.0', port=5000, debug=True)
